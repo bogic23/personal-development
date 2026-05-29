@@ -410,6 +410,7 @@ public class DashboardFragment extends Fragment {
 
                 FinanceTransaction transaction = new FinanceTransaction(walletId, type, amount, note);
                 transaction.setWalletRemoteId(wallet.getRemoteId());
+                transaction.setWalletOwnerId(walletOwnerId(wallet));
                 database.financeTransactionDao().insert(transaction);
                 saveTransactionToFirestore(transaction);
             }
@@ -464,20 +465,21 @@ public class DashboardFragment extends Fragment {
             walletCard.setLayoutParams(cardParams);
 
             TextView walletNameText = new TextView(requireContext());
-            walletNameText.setText(wallet.getName());
+            walletNameText.setText(wallet.isShared() ? wallet.getName() + " (Shared)" : wallet.getName());
             walletNameText.setTextColor(getResources().getColor(R.color.ink_900, null));
             walletNameText.setTextSize(17);
             walletNameText.setTypeface(null, Typeface.BOLD);
 
             EditText nameInput = createEditText("Wallet name", InputType.TYPE_CLASS_TEXT);
             nameInput.setText(wallet.getName());
+            nameInput.setEnabled(!wallet.isShared());
             EditText balanceInput = createEditText("Balance", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
             balanceInput.setText(String.valueOf(wallet.getBalance()));
 
             LinearLayout actionRow = createActionRow();
             Button updateButton = createDialogButton("Update", R.color.blue_600);
             Button deleteButton = createDialogButton("Delete", R.color.expense_red);
-            deleteButton.setEnabled(wallets.size() > 1);
+            deleteButton.setEnabled(!wallet.isShared() && wallets.size() > 1);
             updateButton.setOnClickListener(view -> {
                 String walletName = nameInput.getText().toString().trim();
                 if (walletName.isEmpty()) {
@@ -500,7 +502,15 @@ public class DashboardFragment extends Fragment {
 
             actionRow.addView(updateButton);
             actionRow.addView(deleteButton);
+            if (!wallet.isShared()) {
+                Button shareButton = createDialogButton("Share", R.color.wallet_green);
+                shareButton.setOnClickListener(view -> showShareWalletDialog(wallet));
+                actionRow.addView(shareButton);
+            }
             walletCard.addView(walletNameText);
+            if (wallet.getSharedWithEmail() != null && !wallet.getSharedWithEmail().isEmpty()) {
+                walletCard.addView(createLabel("Shared with " + wallet.getSharedWithEmail()));
+            }
             walletCard.addView(nameInput);
             walletCard.addView(balanceInput);
             walletCard.addView(actionRow);
@@ -548,9 +558,123 @@ public class DashboardFragment extends Fragment {
         dialog.show();
     }
 
+    private void showShareWalletDialog(Wallet wallet) {
+        LinearLayout contentLayout = createDialogLayout();
+        contentLayout.addView(createDialogTitle("Share " + wallet.getName(), "Invite an existing account by email."));
+
+        EditText emailInput = createEditText("User email", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        contentLayout.addView(createLabel("Email"));
+        contentLayout.addView(emailInput);
+
+        LinearLayout actionRow = createActionRow();
+        Button cancelButton = createDialogButton("Cancel", R.color.ink_500);
+        Button shareButton = createDialogButton("Share", R.color.wallet_green);
+        actionRow.addView(cancelButton);
+        actionRow.addView(shareButton);
+        contentLayout.addView(actionRow);
+
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setView(contentLayout)
+                .create();
+
+        cancelButton.setOnClickListener(view -> dialog.dismiss());
+        shareButton.setOnClickListener(view -> {
+            String email = emailInput.getText().toString().trim().toLowerCase(Locale.US);
+            if (email.isEmpty() || !email.contains("@")) {
+                emailInput.setError("Enter a valid email");
+                return;
+            }
+
+            FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+            if (currentUser == null) {
+                Toast.makeText(getContext(), "Please sign in again", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (email.equals(currentUser.getEmail() == null ? "" : currentUser.getEmail().toLowerCase(Locale.US))) {
+                emailInput.setError("Choose another user");
+                return;
+            }
+
+            shareButton.setEnabled(false);
+            shareWalletWithEmail(wallet, email, dialog, emailInput, shareButton);
+        });
+
+        dialog.show();
+    }
+
+    private void shareWalletWithEmail(Wallet wallet, String email, AlertDialog dialog, EditText emailInput, Button shareButton) {
+        firestore.collection("users")
+                .whereEqualTo("emailLowercase", email)
+                .limit(1)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    if (!querySnapshot.isEmpty()) {
+                        DocumentSnapshot userSnapshot = querySnapshot.getDocuments().get(0);
+                        shareWalletWithUser(wallet, userSnapshot.getId(), email, dialog, shareButton);
+                        return;
+                    }
+
+                    firestore.collection("users")
+                            .whereEqualTo("email", email)
+                            .limit(1)
+                            .get()
+                            .addOnSuccessListener(fallbackSnapshot -> {
+                                if (fallbackSnapshot.isEmpty()) {
+                                    emailInput.setError("No account found for this email");
+                                    Toast.makeText(getContext(), "User email is not registered", Toast.LENGTH_SHORT).show();
+                                    shareButton.setEnabled(true);
+                                    return;
+                                }
+
+                                DocumentSnapshot userSnapshot = fallbackSnapshot.getDocuments().get(0);
+                                shareWalletWithUser(wallet, userSnapshot.getId(), email, dialog, shareButton);
+                            })
+                            .addOnFailureListener(exception -> {
+                                Toast.makeText(getContext(), "Could not check this email", Toast.LENGTH_SHORT).show();
+                                shareButton.setEnabled(true);
+                            });
+                })
+                .addOnFailureListener(exception -> {
+                    Toast.makeText(getContext(), "Could not check this email", Toast.LENGTH_SHORT).show();
+                    shareButton.setEnabled(true);
+                });
+    }
+
+    private void shareWalletWithUser(Wallet wallet, String sharedUserId, String sharedEmail, AlertDialog dialog, Button shareButton) {
+        String ownerId = walletOwnerId(wallet);
+        if (ownerId == null || wallet.getRemoteId() == null || wallet.getRemoteId().isEmpty()) {
+            Toast.makeText(getContext(), "Wallet is still syncing. Try again soon.", Toast.LENGTH_SHORT).show();
+            shareButton.setEnabled(true);
+            return;
+        }
+
+        Map<String, Object> shareData = new HashMap<>();
+        shareData.put("sharedWith", sharedUserId);
+        shareData.put("sharedWithEmail", sharedEmail);
+        shareData.put("sharedCanEditBalance", true);
+        shareData.put("updatedAt", FieldValue.serverTimestamp());
+
+        walletsCollection(ownerId).document(wallet.getRemoteId())
+                .set(shareData, SetOptions.merge())
+                .addOnSuccessListener(unused -> {
+                    wallet.setSharedWith(sharedUserId);
+                    wallet.setSharedWithEmail(sharedEmail);
+                    wallet.setSharedCanEditBalance(true);
+                    new Thread(() -> database.walletDao().update(wallet)).start();
+                    Toast.makeText(getContext(), "Wallet shared", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                    loadDashboardData();
+                })
+                .addOnFailureListener(exception -> {
+                    Toast.makeText(getContext(), "Could not share wallet", Toast.LENGTH_SHORT).show();
+                    shareButton.setEnabled(true);
+                });
+    }
+
     private void updateWallet(Wallet wallet) {
         new Thread(() -> {
-            Wallet duplicateWallet = database.walletDao().getWalletByName(wallet.getName());
+            Wallet duplicateWallet = wallet.isShared() ? null : database.walletDao().getWalletByName(wallet.getName());
             if (duplicateWallet != null && duplicateWallet.getId() != wallet.getId()) {
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "Wallet name already exists", Toast.LENGTH_SHORT).show());
@@ -579,6 +703,10 @@ public class DashboardFragment extends Fragment {
             }
 
             Wallet wallet = new Wallet(name, balance);
+            FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+            if (user != null) {
+                wallet.setOwnerId(user.getUid());
+            }
             long walletId = database.walletDao().insert(wallet);
             wallet.setId((int) walletId);
             saveWalletToFirestore(wallet);
@@ -640,12 +768,7 @@ public class DashboardFragment extends Fragment {
                         return;
                     }
 
-                    transactionsCollection(user.getUid()).get()
-                            .addOnSuccessListener(transactionSnapshots -> cacheFirestoreFinance(user.getUid(), walletSnapshots, transactionSnapshots))
-                            .addOnFailureListener(exception -> {
-                                financeSyncInProgress = false;
-                                loadDashboardData();
-                            });
+                    loadSharedWalletsAndTransactions(user.getUid(), walletSnapshots);
                 })
                 .addOnFailureListener(exception -> {
                     financeSyncInProgress = false;
@@ -653,21 +776,36 @@ public class DashboardFragment extends Fragment {
                 });
     }
 
+    private void loadSharedWalletsAndTransactions(String userId, QuerySnapshot ownedWalletSnapshots) {
+        firestore.collectionGroup("wallets")
+                .whereEqualTo("sharedWith", userId)
+                .get()
+                .addOnSuccessListener(sharedWalletSnapshots -> transactionsCollection(userId).get()
+                        .addOnSuccessListener(transactionSnapshots -> cacheFirestoreFinance(userId, ownedWalletSnapshots, sharedWalletSnapshots, transactionSnapshots))
+                        .addOnFailureListener(exception -> {
+                            financeSyncInProgress = false;
+                            loadDashboardData();
+                        }))
+                .addOnFailureListener(exception -> transactionsCollection(userId).get()
+                        .addOnSuccessListener(transactionSnapshots -> cacheFirestoreFinance(userId, ownedWalletSnapshots, null, transactionSnapshots))
+                        .addOnFailureListener(transactionException -> {
+                            financeSyncInProgress = false;
+                            loadDashboardData();
+                        }));
+    }
+
     private void createDefaultWalletInFirestore(String userId) {
         Wallet wallet = new Wallet("Cash", 0);
+        wallet.setOwnerId(userId);
         DocumentReference walletDocument = walletsCollection(userId).document(DEFAULT_WALLET_REMOTE_ID);
         wallet.setRemoteId(walletDocument.getId());
 
         walletDocument.set(walletToMap(wallet), SetOptions.merge())
                 .addOnCompleteListener(task -> new Thread(() -> {
-                    database.financeTransactionDao().deleteAll();
-                    database.walletDao().deleteAll();
-                    database.walletDao().insert(wallet);
-
                     if (getActivity() != null) {
                         getActivity().runOnUiThread(() -> {
                             financeSyncInProgress = false;
-                            loadDashboardData();
+                            syncFinanceFromFirestore();
                         });
                     } else {
                         financeSyncInProgress = false;
@@ -675,7 +813,7 @@ public class DashboardFragment extends Fragment {
                 }).start());
     }
 
-    private void cacheFirestoreFinance(String userId, QuerySnapshot walletSnapshots, QuerySnapshot transactionSnapshots) {
+    private void cacheFirestoreFinance(String userId, QuerySnapshot walletSnapshots, QuerySnapshot sharedWalletSnapshots, QuerySnapshot transactionSnapshots) {
         new Thread(() -> {
             database.financeTransactionDao().deleteAll();
             database.walletDao().deleteAll();
@@ -684,23 +822,27 @@ public class DashboardFragment extends Fragment {
             Map<String, Wallet> uniqueWallets = new HashMap<>();
             Map<String, String> walletRemoteIdRemap = new HashMap<>();
             for (DocumentSnapshot walletSnapshot : walletSnapshots.getDocuments()) {
-                Wallet wallet = walletFromSnapshot(walletSnapshot);
-                String walletNameKey = normalizeWalletName(wallet.getName());
-                if (uniqueWallets.containsKey(walletNameKey)) {
-                    Wallet keptWallet = uniqueWallets.get(walletNameKey);
-                    keptWallet.setBalance(keptWallet.getBalance() + wallet.getBalance());
-                    walletRemoteIdRemap.put(wallet.getRemoteId(), keptWallet.getRemoteId());
-                    mergeDuplicateWalletInFirestore(userId, wallet.getRemoteId(), keptWallet);
-                    continue;
-                }
-
-                uniqueWallets.put(walletNameKey, wallet);
+                Wallet wallet = walletFromSnapshot(walletSnapshot, userId, false);
+                String walletKey = walletStorageKey(wallet);
+                uniqueWallets.put(walletKey, wallet);
                 walletRemoteIdRemap.put(wallet.getRemoteId(), wallet.getRemoteId());
+            }
+            if (sharedWalletSnapshots != null) {
+                for (DocumentSnapshot walletSnapshot : sharedWalletSnapshots.getDocuments()) {
+                    String ownerId = ownerIdFromWalletSnapshot(walletSnapshot);
+                    if (ownerId == null || ownerId.equals(userId)) {
+                        continue;
+                    }
+
+                    Wallet wallet = walletFromSnapshot(walletSnapshot, ownerId, true);
+                    uniqueWallets.put(walletStorageKey(wallet), wallet);
+                    walletRemoteIdRemap.put(wallet.getRemoteId(), wallet.getRemoteId());
+                }
             }
 
             for (Wallet wallet : uniqueWallets.values()) {
                 long localId = database.walletDao().insert(wallet);
-                walletLocalIds.put(wallet.getRemoteId(), (int) localId);
+                walletLocalIds.put(walletStorageKey(wallet), (int) localId);
             }
 
             for (DocumentSnapshot transactionSnapshot : transactionSnapshots.getDocuments()) {
@@ -712,7 +854,10 @@ public class DashboardFragment extends Fragment {
                     transactionSnapshot.getReference().update("walletRemoteId", walletRemoteId);
                     transaction.setWalletRemoteId(walletRemoteId);
                 }
-                Integer walletId = walletLocalIds.get(walletRemoteId);
+                String walletOwnerId = transaction.getWalletOwnerId() == null || transaction.getWalletOwnerId().isEmpty()
+                        ? userId
+                        : transaction.getWalletOwnerId();
+                Integer walletId = walletLocalIds.get(walletOwnerId + ":" + walletRemoteId);
                 if (walletId != null) {
                     transaction.setWalletId(walletId);
                     database.financeTransactionDao().insert(transaction);
@@ -730,13 +875,19 @@ public class DashboardFragment extends Fragment {
         }).start();
     }
 
-    private Wallet walletFromSnapshot(DocumentSnapshot snapshot) {
+    private Wallet walletFromSnapshot(DocumentSnapshot snapshot, String ownerId, boolean shared) {
         String name = snapshot.getString("name");
         Double balance = snapshot.getDouble("balance");
         String createdAt = snapshot.getString("createdAt");
+        Boolean sharedCanEditBalance = snapshot.getBoolean("sharedCanEditBalance");
 
         Wallet wallet = new Wallet(name == null ? "Wallet" : name, balance == null ? 0 : balance);
         wallet.setRemoteId(snapshot.getId());
+        wallet.setOwnerId(ownerId);
+        wallet.setShared(shared);
+        wallet.setSharedCanEditBalance(sharedCanEditBalance != null && sharedCanEditBalance);
+        wallet.setSharedWith(snapshot.getString("sharedWith"));
+        wallet.setSharedWithEmail(snapshot.getString("sharedWithEmail"));
         wallet.setCreatedAt(createdAt == null ? String.valueOf(System.currentTimeMillis()) : createdAt);
         return wallet;
     }
@@ -745,12 +896,14 @@ public class DashboardFragment extends Fragment {
         String type = snapshot.getString("type");
         String note = snapshot.getString("note");
         String walletRemoteId = snapshot.getString("walletRemoteId");
+        String walletOwnerId = snapshot.getString("walletOwnerId");
         String createdAt = snapshot.getString("createdAt");
         Double amount = snapshot.getDouble("amount");
 
         FinanceTransaction transaction = new FinanceTransaction(0, type == null ? "Expense" : type, amount == null ? 0 : amount, note == null ? "" : note);
         transaction.setRemoteId(snapshot.getId());
         transaction.setWalletRemoteId(walletRemoteId);
+        transaction.setWalletOwnerId(walletOwnerId);
         transaction.setCreatedAt(createdAt == null ? String.valueOf(System.currentTimeMillis()) : createdAt);
         return transaction;
     }
@@ -767,8 +920,11 @@ public class DashboardFragment extends Fragment {
                     : walletsCollection(user.getUid()).document().getId();
             wallet.setRemoteId(walletRemoteId);
         }
+        if (wallet.getOwnerId() == null || wallet.getOwnerId().isEmpty()) {
+            wallet.setOwnerId(user.getUid());
+        }
 
-        DocumentReference walletDocument = walletsCollection(user.getUid()).document(wallet.getRemoteId());
+        DocumentReference walletDocument = walletsCollection(walletOwnerId(wallet)).document(wallet.getRemoteId());
 
         if (wallet.getId() > 0) {
             wallet.setRemoteId(walletDocument.getId());
@@ -784,7 +940,7 @@ public class DashboardFragment extends Fragment {
             return;
         }
 
-        String userId = user.getUid();
+        String userId = walletOwnerId(wallet);
         walletsCollection(userId).document(wallet.getRemoteId()).delete();
         transactionsCollection(userId)
                 .whereEqualTo("walletRemoteId", wallet.getRemoteId())
@@ -821,6 +977,12 @@ public class DashboardFragment extends Fragment {
         data.put("name", wallet.getName());
         data.put("balance", wallet.getBalance());
         data.put("createdAt", wallet.getCreatedAt());
+        data.put("ownerId", walletOwnerId(wallet));
+        if (wallet.getSharedWith() != null && !wallet.getSharedWith().isEmpty()) {
+            data.put("sharedWith", wallet.getSharedWith());
+            data.put("sharedWithEmail", wallet.getSharedWithEmail() == null ? "" : wallet.getSharedWithEmail());
+            data.put("sharedCanEditBalance", wallet.isSharedCanEditBalance());
+        }
         data.put("updatedAt", FieldValue.serverTimestamp());
         return data;
     }
@@ -828,6 +990,7 @@ public class DashboardFragment extends Fragment {
     private Map<String, Object> transactionToMap(FinanceTransaction transaction) {
         Map<String, Object> data = new HashMap<>();
         data.put("walletRemoteId", transaction.getWalletRemoteId());
+        data.put("walletOwnerId", transaction.getWalletOwnerId());
         data.put("type", transaction.getType());
         data.put("amount", transaction.getAmount());
         data.put("note", transaction.getNote());
@@ -842,6 +1005,23 @@ public class DashboardFragment extends Fragment {
 
     private CollectionReference transactionsCollection(String userId) {
         return firestore.collection("users").document(userId).collection("finance_transactions");
+    }
+
+    private String walletOwnerId(Wallet wallet) {
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (wallet.getOwnerId() != null && !wallet.getOwnerId().isEmpty()) {
+            return wallet.getOwnerId();
+        }
+        return user == null ? null : user.getUid();
+    }
+
+    private String ownerIdFromWalletSnapshot(DocumentSnapshot snapshot) {
+        DocumentReference userDocument = snapshot.getReference().getParent().getParent();
+        return userDocument == null ? null : userDocument.getId();
+    }
+
+    private String walletStorageKey(Wallet wallet) {
+        return walletOwnerId(wallet) + ":" + wallet.getRemoteId();
     }
 
     private LinearLayout createDialogLayout() {

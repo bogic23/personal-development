@@ -10,6 +10,7 @@ public class FinanceTransaction {
     private String remoteId;
     private int walletId;
     private String walletRemoteId;
+    private String walletOwnerId;
     private String type;
     private double amount;
     private String note;
@@ -34,6 +35,9 @@ public class FinanceTransaction {
 
     public String getWalletRemoteId() { return walletRemoteId; }
     public void setWalletRemoteId(String walletRemoteId) { this.walletRemoteId = walletRemoteId; }
+
+    public String getWalletOwnerId() { return walletOwnerId; }
+    public void setWalletOwnerId(String walletOwnerId) { this.walletOwnerId = walletOwnerId; }
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }

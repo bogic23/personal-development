@@ -29,6 +29,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.SetOptions;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class LoginActivity extends AppCompatActivity {
@@ -130,24 +131,32 @@ public class LoginActivity extends AppCompatActivity {
         );
 
         if (webClientIdResource == 0) {
-            Toast.makeText(
-                    this,
-                    "Add a Firebase Web OAuth client to google-services.json for Google login.",
-                    Toast.LENGTH_LONG
-            ).show();
+            Toast.makeText(this, "Configuration error: Missing default_web_client_id from google-services.json", Toast.LENGTH_LONG).show();
             return;
         }
 
-        if (googleSignInClient == null) {
-            GoogleSignInOptions signInOptions = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                    .requestIdToken(getString(webClientIdResource))
-                    .requestEmail()
-                    .build();
-            googleSignInClient = GoogleSignIn.getClient(this, signInOptions);
+        String webClientId = getString(webClientIdResource);
+
+        if (TextUtils.isEmpty(webClientId) || !webClientId.contains(".apps.googleusercontent.com")) {
+            Toast.makeText(this, "Configuration error: Invalid Google Web Client ID. Please check your google-services.json", Toast.LENGTH_LONG).show();
+            return;
         }
 
-        setLoading(true);
-        startActivityForResult(googleSignInClient.getSignInIntent(), GOOGLE_SIGN_IN_REQUEST);
+        try {
+            if (googleSignInClient == null) {
+                GoogleSignInOptions signInOptions = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        .requestIdToken(webClientId)
+                        .requestEmail()
+                        .build();
+                googleSignInClient = GoogleSignIn.getClient(this, signInOptions);
+            }
+
+            setLoading(true);
+            startActivityForResult(googleSignInClient.getSignInIntent(), GOOGLE_SIGN_IN_REQUEST);
+        } catch (Exception e) {
+            setLoading(false);
+            showAuthError("Failed to initialize Google Sign-In", e);
+        }
     }
 
     @Override
@@ -189,6 +198,7 @@ public class LoginActivity extends AppCompatActivity {
 
         Map<String, Object> profile = new HashMap<>();
         profile.put("email", user.getEmail() == null ? "" : user.getEmail());
+        profile.put("emailLowercase", user.getEmail() == null ? "" : user.getEmail().toLowerCase(Locale.US));
 
         FirebaseFirestore.getInstance()
                 .collection("users")
