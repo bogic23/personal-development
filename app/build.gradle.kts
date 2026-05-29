@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.personaldashboard"
+    namespace = "com.abc.personaldashboard"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.personaldashboard"
+        applicationId = "com.abc.personaldashboard"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
