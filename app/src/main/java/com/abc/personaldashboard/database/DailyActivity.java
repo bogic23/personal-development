@@ -7,27 +7,25 @@ import androidx.room.PrimaryKey;
 public class DailyActivity {
     @PrimaryKey(autoGenerate = true)
     private int id;
-    private String dayOfWeek; // SUNDAY, MONDAY, etc.
+    private String activityDate;
     private String activityName;
     private String timeStart;
     private String timeEnd;
     private boolean isCompleted;
 
-    // Constructor
-    public DailyActivity(String dayOfWeek, String activityName, String timeStart, String timeEnd) {
-        this.dayOfWeek = dayOfWeek;
+    public DailyActivity(String activityDate, String activityName, String timeStart, String timeEnd) {
+        this.activityDate = activityDate;
         this.activityName = activityName;
         this.timeStart = timeStart;
         this.timeEnd = timeEnd;
         this.isCompleted = false;
     }
 
-    // Getters and Setters
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
 
-    public String getDayOfWeek() { return dayOfWeek; }
-    public void setDayOfWeek(String dayOfWeek) { this.dayOfWeek = dayOfWeek; }
+    public String getActivityDate() { return activityDate; }
+    public void setActivityDate(String activityDate) { this.activityDate = activityDate; }
 
     public String getActivityName() { return activityName; }
     public void setActivityName(String activityName) { this.activityName = activityName; }

@@ -18,12 +18,12 @@ public interface DailyActivityDao {
     @Delete
     void delete(DailyActivity activity);
 
-    @Query("SELECT * FROM daily_activities WHERE dayOfWeek = :day ORDER BY timeStart ASC")
-    List<DailyActivity> getActivitiesForDay(String day);
+    @Query("SELECT * FROM daily_activities WHERE activityDate = :activityDate ORDER BY timeStart ASC")
+    List<DailyActivity> getActivitiesForDate(String activityDate);
 
     @Query("SELECT * FROM daily_activities")
     List<DailyActivity> getAllActivities();
 
-    @Query("SELECT * FROM daily_activities WHERE dayOfWeek = :day AND isCompleted = 1")
-    List<DailyActivity> getCompletedActivitiesForDay(String day);
+    @Query("SELECT * FROM daily_activities WHERE activityDate = :activityDate AND isCompleted = 1")
+    List<DailyActivity> getCompletedActivitiesForDate(String activityDate);
 }
