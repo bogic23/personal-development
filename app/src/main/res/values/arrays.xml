@@ -9,4 +9,9 @@
         <item>FRIDAY</item>
         <item>SATURDAY</item>
     </string-array>
+    <string-array name="gender_options">
+        <item>Male</item>
+        <item>Female</item>
+        <item>Rather not to say</item>
+    </string-array>
 </resources>

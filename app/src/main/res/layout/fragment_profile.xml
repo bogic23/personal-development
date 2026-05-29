@@ -33,26 +33,26 @@
             android:textColorHint="@color/ink_500"
             android:textCursorDrawable="@null" />
 
-        <EditText
+        <Spinner
             android:id="@+id/gender_input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_input"
-            android:hint="Gender"
             android:layout_marginTop="8dp"
+            android:entries="@array/gender_options"
             android:minHeight="48dp"
             android:paddingStart="14dp"
-            android:paddingEnd="14dp"
-            android:textColor="@color/ink_900"
-            android:textColorHint="@color/ink_500"
-            android:textCursorDrawable="@null" />
+            android:paddingEnd="14dp" />
 
         <EditText
             android:id="@+id/birth_input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_input"
+            android:clickable="true"
+            android:focusable="false"
             android:hint="Birth Date (YYYY-MM-DD)"
+            android:inputType="none"
             android:layout_marginTop="8dp"
             android:minHeight="48dp"
             android:paddingStart="14dp"
@@ -66,7 +66,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_input"
+            android:enabled="false"
             android:hint="Email"
+            android:inputType="textEmailAddress"
             android:layout_marginTop="8dp"
             android:minHeight="48dp"
             android:paddingStart="14dp"
@@ -81,6 +83,7 @@
             android:layout_height="wrap_content"
             android:background="@drawable/bg_input"
             android:hint="Phone Number"
+            android:inputType="phone"
             android:layout_marginTop="8dp"
             android:minHeight="48dp"
             android:paddingStart="14dp"
@@ -165,6 +168,18 @@
             android:layout_marginTop="16dp"
             android:textAllCaps="false"
             android:textColor="@color/white"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/logout_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/bg_button_google"
+            android:minHeight="48dp"
+            android:text="Logout"
+            android:textAllCaps="false"
+            android:textColor="@color/blue_700"
             android:textStyle="bold" />
 
     </LinearLayout>
