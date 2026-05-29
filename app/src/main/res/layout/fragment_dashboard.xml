@@ -1,84 +1,137 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_app_gradient"
-    android:clipToPadding="false"
-    android:padding="16dp">
+    android:background="@drawable/bg_app_gradient">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:padding="16dp"
+        android:paddingBottom="112dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_hero_card"
-            android:orientation="vertical"
-            android:padding="18dp">
-
-            <TextView
-                android:id="@+id/today_date"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="@color/white"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Personal Dashboard"
-                android:textColor="@color/white"
-                android:textSize="26sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Plan your day with a clear, fresh flow."
-                android:textColor="@color/cyan_50"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="3dp">
+            android:orientation="vertical">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="@drawable/bg_hero_card"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="18dp">
 
                 <TextView
+                    android:id="@+id/today_date"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Quick Focus"
-                    android:textColor="@color/ink_900"
-                    android:textSize="18sp"
+                    android:textColor="@color/white"
+                    android:textSize="15sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:text="Check tasks, daily routines, and nearby events at a glance."
-                    android:textColor="@color/ink_500"
+                    android:layout_marginTop="8dp"
+                    android:text="Personal Dashboard"
+                    android:textColor="@color/white"
+                    android:textSize="26sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Plan your day with a clear, fresh flow."
+                    android:textColor="@color/cyan_50"
                     android:textSize="14sp" />
-
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
 
-        <androidx.cardview.widget.CardView
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="3dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Money"
+                        android:textColor="@color/ink_900"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/total_wallet_balance"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Wallet Balance: Rp0"
+                        android:textColor="@color/blue_700"
+                        android:textSize="20sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/total_income"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Income: Rp0"
+                        android:textColor="@color/wallet_green" />
+
+                    <TextView
+                        android:id="@+id/total_expense"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Expense: Rp0"
+                        android:textColor="@color/expense_red" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="3dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Quick Focus"
+                        android:textColor="@color/ink_900"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Check tasks, daily routines, and nearby events at a glance."
+                        android:textColor="@color/ink_500"
+                        android:textSize="14sp" />
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
@@ -127,19 +180,73 @@
         </androidx.cardview.widget.CardView>
 
         <TextView
+            android:id="@+id/upcoming_events_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Today's Schedule"
+            android:text="Upcoming Events"
             android:textColor="@color/ink_900"
             android:textSize="18sp"
             android:textStyle="bold"
             android:layout_marginTop="16dp"
             android:layout_marginBottom="8dp" />
 
+        <TextView
+            android:id="@+id/upcoming_events_empty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_card"
+            android:padding="14dp"
+            android:text="No events in the next 7 days."
+            android:textColor="@color/ink_500"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/nearest_schedule_recycler"
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
 
-    </LinearLayout>
-</ScrollView>
+        </LinearLayout>
+    </ScrollView>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_wallets"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="160dp"
+        android:contentDescription="Wallets"
+        android:visibility="gone"
+        app:backgroundTint="@color/wallet_green"
+        app:fabSize="normal"
+        app:srcCompat="@drawable/ic_wallet"
+        app:tint="@color/white" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_transaction"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="92dp"
+        android:contentDescription="Add expense or income"
+        android:visibility="gone"
+        app:backgroundTint="@color/blue_600"
+        app:fabSize="normal"
+        app:srcCompat="@drawable/ic_payments"
+        app:tint="@color/white" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_finance"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="24dp"
+        android:contentDescription="Finance actions"
+        app:backgroundTint="@color/cyan_600"
+        app:fabSize="normal"
+        app:srcCompat="@drawable/ic_add"
+        app:tint="@color/white" />
+</FrameLayout>

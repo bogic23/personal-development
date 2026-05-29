@@ -19,9 +19,19 @@ import androidx.fragment.app.Fragment;
 import com.abc.personaldashboard.R;
 import com.abc.personaldashboard.database.AppDatabase;
 import com.abc.personaldashboard.database.CalendarEvent;
+import com.google.firebase.Timestamp;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -45,6 +55,9 @@ public class CalendarFragment extends Fragment {
     private LinearLayout calendarContainer;
     private LinearLayout eventsList;
     private AppDatabase database;
+    private FirebaseAuth firebaseAuth;
+    private FirebaseFirestore firestore;
+    private ListenerRegistration eventsListener;
     private CalendarMode currentMode = CalendarMode.MONTHLY;
     private Calendar visibleDate = Calendar.getInstance();
     private Calendar selectedDate = Calendar.getInstance();
@@ -59,6 +72,8 @@ public class CalendarFragment extends Fragment {
         View view = inflater.inflate(R.layout.fragment_calendar, container, false);
 
         database = AppDatabase.getInstance(getContext());
+        firebaseAuth = FirebaseAuth.getInstance();
+        firestore = FirebaseFirestore.getInstance();
         monthViewButton = view.findViewById(R.id.month_view_button);
         weekViewButton = view.findViewById(R.id.week_view_button);
         yearViewButton = view.findViewById(R.id.year_view_button);
@@ -76,8 +91,17 @@ public class CalendarFragment extends Fragment {
         previousButton.setOnClickListener(v -> movePeriod(-1));
         nextButton.setOnClickListener(v -> movePeriod(1));
 
-        loadEvents();
+        listenForEvents();
         return view;
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (eventsListener != null) {
+            eventsListener.remove();
+            eventsListener = null;
+        }
+        super.onDestroyView();
     }
 
     private void switchMode(CalendarMode mode) {
@@ -97,7 +121,114 @@ public class CalendarFragment extends Fragment {
         renderCalendar();
     }
 
-    private void loadEvents() {
+    private void listenForEvents() {
+        FirebaseUser user = firebaseAuth.getCurrentUser();
+        if (user == null) {
+            loadLocalEvents();
+            return;
+        }
+
+        if (eventsListener != null) {
+            eventsListener.remove();
+        }
+
+        eventsListener = firestore.collection("users")
+                .document(user.getUid())
+                .collection("calendarEvents")
+                .addSnapshotListener((snapshot, exception) -> {
+                    if (!isAdded()) {
+                        return;
+                    }
+
+                    if (exception != null) {
+                        Toast.makeText(getContext(), "Firestore load failed. Showing local events.", Toast.LENGTH_LONG).show();
+                        loadLocalEvents();
+                        return;
+                    }
+
+                    List<CalendarEvent> events = new ArrayList<>();
+                    if (snapshot != null) {
+                        for (DocumentSnapshot document : snapshot.getDocuments()) {
+                            CalendarEvent event = eventFromDocument(document);
+                            if (!event.getEventName().isEmpty() && !event.getEventDate().isEmpty()) {
+                                events.add(event);
+                            }
+                        }
+                    }
+                    eventsByDate = groupEventsByDate(events);
+                    renderCalendar();
+                    renderSelectedEvents();
+                });
+    }
+
+    private CalendarEvent eventFromDocument(DocumentSnapshot document) {
+        String name = firstString(document, "eventName", "name", "title");
+        String date = firstDate(document, "eventDate", "date", "startDate");
+        String time = firstString(document, "eventTime", "time", "startTime");
+        String description = firstString(document, "description", "notes", "detail");
+        String location = firstString(document, "location", "place", "address");
+        return new CalendarEvent(name, date, time, description, location);
+    }
+
+    private String firstString(DocumentSnapshot document, String... fields) {
+        for (String field : fields) {
+            Object value = document.get(field);
+            if (value != null) {
+                String text = String.valueOf(value).trim();
+                if (!text.isEmpty()) {
+                    return text;
+                }
+            }
+        }
+        return "";
+    }
+
+    private String firstDate(DocumentSnapshot document, String... fields) {
+        for (String field : fields) {
+            Object value = document.get(field);
+            String formattedDate = normalizeDate(value);
+            if (!formattedDate.isEmpty()) {
+                return formattedDate;
+            }
+        }
+        return "";
+    }
+
+    private String normalizeDate(Object value) {
+        if (value == null) {
+            return "";
+        }
+
+        if (value instanceof Timestamp) {
+            return storageFormatter.format(((Timestamp) value).toDate());
+        }
+
+        if (value instanceof Date) {
+            return storageFormatter.format((Date) value);
+        }
+
+        String text = String.valueOf(value).trim();
+        if (text.isEmpty()) {
+            return "";
+        }
+
+        String[] patterns = {"yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy", "MM/dd/yyyy"};
+        for (String pattern : patterns) {
+            try {
+                SimpleDateFormat parser = new SimpleDateFormat(pattern, Locale.ENGLISH);
+                parser.setLenient(false);
+                Date parsedDate = parser.parse(text);
+                if (parsedDate != null) {
+                    return storageFormatter.format(parsedDate);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        return text.length() >= 10 ? text.substring(0, 10) : text;
+    }
+
+    private void loadLocalEvents() {
         new Thread(() -> {
             List<CalendarEvent> events = database.calendarEventDao().getAllEvents();
             if (getActivity() == null) {
@@ -119,6 +250,9 @@ public class CalendarFragment extends Fragment {
                 groupedEvents.put(date, new ArrayList<>());
             }
             groupedEvents.get(date).add(event);
+        }
+        for (List<CalendarEvent> dateEvents : groupedEvents.values()) {
+            Collections.sort(dateEvents, Comparator.comparing(event -> event.getEventTime() == null ? "" : event.getEventTime()));
         }
         return groupedEvents;
     }
@@ -413,14 +547,51 @@ public class CalendarFragment extends Fragment {
     private void saveEvent(Calendar date, String name, String time, String description, String location) {
         String dateKey = storageFormatter.format(date.getTime());
         CalendarEvent event = new CalendarEvent(name, dateKey, time, description, location);
+        FirebaseUser user = firebaseAuth.getCurrentUser();
+
+        if (user != null) {
+            saveEventToFirestore(user, event);
+            return;
+        }
+
+        saveEventLocally(event, "Event added locally!");
+    }
+
+    private void saveEventToFirestore(FirebaseUser user, CalendarEvent event) {
+        Map<String, Object> eventData = new HashMap<>();
+        eventData.put("eventName", event.getEventName());
+        eventData.put("eventDate", event.getEventDate());
+        eventData.put("eventTime", event.getEventTime());
+        eventData.put("description", event.getDescription());
+        eventData.put("location", event.getLocation());
+
+        DocumentReference eventDocument = firestore.collection("users")
+                .document(user.getUid())
+                .collection("calendarEvents")
+                .document();
+        eventData.put("id", eventDocument.getId());
+
+        eventDocument.set(eventData)
+                .addOnSuccessListener(unused -> saveEventLocally(event, "Event saved to Firestore!"))
+                .addOnFailureListener(exception -> {
+                    if (getContext() != null) {
+                        Toast.makeText(getContext(), "Firestore save failed. Saved locally.", Toast.LENGTH_LONG).show();
+                    }
+                    saveEventLocally(event, null);
+                });
+    }
+
+    private void saveEventLocally(CalendarEvent event, String successMessage) {
         new Thread(() -> {
             database.calendarEventDao().insert(event);
             if (getActivity() == null) {
                 return;
             }
             getActivity().runOnUiThread(() -> {
-                Toast.makeText(getContext(), "Event added!", Toast.LENGTH_SHORT).show();
-                loadEvents();
+                if (successMessage != null && getContext() != null) {
+                    Toast.makeText(getContext(), successMessage, Toast.LENGTH_SHORT).show();
+                }
+                listenForEvents();
             });
         }).start();
     }
